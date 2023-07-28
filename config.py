@@ -3,6 +3,7 @@ import torch
 from utils import Logger
 from utils.data import train_transforms, valid_transforms, infer_transforms
 from metric import dice_coefficient, intersection_over_union, hausdorff_distance_2d
+from losses import DiceCELoss
 
 
 class Config:
@@ -27,11 +28,11 @@ class Config:
     MODEL_CHECKPOINT = None
 
     # 训练超参数
-    EPOCHS = 500
+    EPOCHS = 100
     START_EPOCH = 0
     LEARNING_RATE = 1e-3
     IS_SCHEDULER = True
-    SAVE_INTERVAL = 5
+    SAVE_INTERVAL = 10
     VALID_INTERVAL = 1
 
     # 数据集参数
@@ -43,18 +44,20 @@ class Config:
     VALID_TRANSFORMS = valid_transforms()
 
     # 损失函数
-    LOSS_FN = torch.nn.MSELoss()
+    LOSS_FN = DiceCELoss()
 
     # 优化方法
     OPTIMIZER = torch.optim.Adam
-    OPTIM_KWARGS = {}
+    OPTIM_KWARGS = {
+        'weight_decay': 1e-3
+    }
 
     # 评估指标
     THRESHOLD = 0.7
     EVALUATION_METRIC = {
-        'dice_coef': dice_coefficient,
+        'dice': dice_coefficient,
         'iou': intersection_over_union,
-        'haus dist': hausdorff_distance_2d,
+        # 'haus dist': hausdorff_distance_2d,
     }
     METRIC_KEYS = EVALUATION_METRIC.keys()
 
@@ -77,20 +80,23 @@ class Config:
             os.makedirs(self.RUNNING_DIR)
 
     def __str__(self):
-        msg = f'\nLAB {self.LAB_ID}\n' \
-              f'MODEL: {self.SMP_ARCH} with encoder {self.SMP_ENCODER_NAME}\n' \
-              f'{"USING CHECKPOINT {}".format(self.MODEL_CHECKPOINT) if self.MODEL_CHECKPOINT is not None else ""}\n' \
-              f'# GPU硬件环境\n' \
-              f'DEVICE = {self.DEVICE}\n' \
-              f'DEVICE_IDS = {self.DEVICE_IDS}\n' \
-              f'# 训练超参数\n' \
-              f'EPOCHS = {self.EPOCHS}\n' \
-              f'LEARNING_RATE = {self.LEARNING_RATE}\n' \
-              f'IS_SCHEDULER = {self.IS_SCHEDULER}\n' \
-              f'SAVE_INTERVAL = {self.SAVE_INTERVAL}\n' \
-              f'VALID_INTERVAL = {self.VALID_INTERVAL}\n' \
-              f'# 数据集参数\n' \
-              f'IMG_SIZE = {self.IMG_SIZE}\n' \
-              f'BATCH_SIZE = {self.BATCH_SIZE}\n' \
-              f'NUM_WORKER = {self.NUM_WORKER}\n'
-        return msg
+        # todo: 此处可修改为输出config.py文件
+        with open(__file__, 'r', encoding='utf8') as fp:
+            msg = fp.read()
+        # msg = f'\nLAB {self.LAB_ID}\n' \
+        #       f'MODEL: {self.SMP_ARCH} with encoder {self.SMP_ENCODER_NAME}\n' \
+        #       f'{"USING CHECKPOINT {}".format(self.MODEL_CHECKPOINT) if self.MODEL_CHECKPOINT is not None else ""}\n' \
+        #       f'# GPU硬件环境\n' \
+        #       f'DEVICE = {self.DEVICE}\n' \
+        #       f'DEVICE_IDS = {self.DEVICE_IDS}\n' \
+        #       f'# 训练超参数\n' \
+        #       f'EPOCHS = {self.EPOCHS}\n' \
+        #       f'LEARNING_RATE = {self.LEARNING_RATE}\n' \
+        #       f'IS_SCHEDULER = {self.IS_SCHEDULER}\n' \
+        #       f'SAVE_INTERVAL = {self.SAVE_INTERVAL}\n' \
+        #       f'VALID_INTERVAL = {self.VALID_INTERVAL}\n' \
+        #       f'# 数据集参数\n' \
+        #       f'IMG_SIZE = {self.IMG_SIZE}\n' \
+        #       f'BATCH_SIZE = {self.BATCH_SIZE}\n' \
+        #       f'NUM_WORKER = {self.NUM_WORKER}\n'
+        return '\n --- config --- \n\n' + msg

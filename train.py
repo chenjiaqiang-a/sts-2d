@@ -142,7 +142,7 @@ class Engine:
         self.logger.info(f'Successfully load model {file_path}')
 
     @torch.no_grad()
-    def evaluate(self, dataloader, model: torch.nn.Module | str = 'best'):
+    def evaluate(self, dataloader, model: str = 'best'):
         self.logger.info('START EVALUATING')
 
         if isinstance(model, torch.nn.Module):
@@ -172,10 +172,14 @@ class Engine:
         for key in self.metric_key:
             results[key] /= num_sample
             self.logger.info(f'{key:>10}: {results[key]:.6f}')
-        save_result(results, os.path.join(self.running_dir, 'evaluation.pkl'))
+
+        return results
 
 
 def k_fold_cross_validate(cfg: Config):
+    import pandas as pd
+    # import matplotlib.pyplot as plt
+
     def k_fold_data_split():
         data_train_dir = os.path.join(cfg.DATA_DIR, 'image')
         filenames = np.array([filename for filename in os.listdir(data_train_dir)
@@ -190,12 +194,41 @@ def k_fold_cross_validate(cfg: Config):
                                           num_workers=cfg.NUM_WORKER)
             yield train_dataloader, valid_dataloader
 
+    models = ['best'] + [f'EP-{ep}' for ep in range(cfg.SAVE_INTERVAL, cfg.EPOCHS + 1, cfg.SAVE_INTERVAL)]
+    evaluation = {
+        f'{model}-{key}': []
+        for model in models
+        for key in cfg.METRIC_KEYS
+    }
+
     for k, (train_loader, valid_loader) in enumerate(k_fold_data_split()):
         cfg.change_running_dir(os.path.join('run', cfg.LAB_ID, f'fold-{k + 1}'))
-        cfg.logger.info(f'\n--- Fold {k + 1}/{cfg.K_FOLD} ---\n')
+        cfg.logger.info(f'\n\n--- Fold {k + 1}/{cfg.K_FOLD} ---\n')
         engine = Engine(cfg)
-        engine.train(train_loader, True, valid_loader)
-        engine.evaluate(valid_loader)
+        # engine.train(train_loader, True, valid_loader)
+        engine.train(train_loader)
+
+        result = engine.evaluate(valid_loader, model='best')
+        for key in cfg.METRIC_KEYS:
+            evaluation[f'best-{key}'].append(result[key])
+
+        for ep in range(cfg.SAVE_INTERVAL, cfg.EPOCHS + 1, cfg.SAVE_INTERVAL):
+            result = engine.evaluate(
+                valid_loader, model=os.path.join(cfg.MODEL_PATH, f'{engine.model_name}+epoch{ep:03d}.pth'))
+            for key in cfg.METRIC_KEYS:
+                evaluation[f'EP-{ep}-{key}'].append(result[key])
+
+    cfg.change_running_dir(os.path.join('run', cfg.LAB_ID))
+
+    df = pd.DataFrame.from_dict(evaluation)
+    df.index = pd.Series([f'fold-{k+1}' for k in range(cfg.K_FOLD)])
+    col_mean = df.mean()
+    col_mean.index = pd.Series(['mean'])
+    col_std = df.std()
+    col_std.index = pd.Series(['std'])
+    df = df.append(col_mean)
+    df = df.append(col_std)
+    df.to_csv(os.path.join(cfg.RUNNING_DIR, 'evaluation.csv'))
 
 
 if __name__ == '__main__':
@@ -204,7 +237,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     config = Config()
-    if args.k_folder:
+    if args.k_fold:
         # 使用k折交叉验证进行实验
         config.logger.info('--- K-FOLD CROSS VALIDATION ---')
         k_fold_cross_validate(config)

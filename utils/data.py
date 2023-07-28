@@ -20,6 +20,7 @@ class STS2DDataset(Dataset):
     def __getitem__(self, index):
         image_path = os.path.join(self.data_dir, 'image', self.filenames[index])
         image = cv2.imread(image_path)
+        # image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         result = {'image': image}
 
         if self.tag == 'train':
