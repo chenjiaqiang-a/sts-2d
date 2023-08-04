@@ -3,12 +3,14 @@ import argparse
 
 import torch
 import numpy as np
-import segmentation_models_pytorch as smp
 from sklearn.model_selection import KFold
 from torch.utils.data import DataLoader
 
 from config import Config
-from utils import save_result
+from model import create_model
+from loss_fn import get_loss_fn
+from utils import save_result, load_pickle
+from utils.visualization import plot_mean_std_curves
 from utils.data import STS2DDataset
 
 
@@ -27,14 +29,14 @@ class Engine:
         self.device = torch.device(cfg.DEVICE)
 
         # 模型配置
-        self.model_name = f'{cfg.SMP_ARCH}+{cfg.SMP_ENCODER_NAME}'
-        self.model = smp.create_model(
-            arch=cfg.SMP_ARCH,
-            encoder_name=cfg.SMP_ENCODER_NAME,
-            encoder_weights=cfg.SMP_ENCODER_WEIGHTS,
+        self.model_name = f'{cfg.MODEL_ARCH}+{cfg.MODEL_ENCODER_NAME}'
+        self.model = create_model(
+            arch=cfg.MODEL_ARCH,
+            encoder_name=cfg.MODEL_ENCODER_NAME,
+            encoder_weights=cfg.MODEL_ENCODER_WEIGHTS,
             in_channels=3,
             classes=1,
-            **cfg.SMP_KWARGS,
+            **cfg.MODEL_KWARGS,
         )
         if cfg.DEVICE_IDS is not None:
             self.model = torch.nn.DataParallel(self.model, device_ids=cfg.DEVICE_IDS)
@@ -44,9 +46,11 @@ class Engine:
             self.load_model(cfg.MODEL_CHECKPOINT)
 
         # 训练配置
-        self.criterion = cfg.LOSS_FN.to(self.device)
+        self.criterion = get_loss_fn(cfg.LOSS_FN, **cfg.LOSS_FN_KWARGS).to(self.device)
         self.optimizer = cfg.OPTIMIZER(self.model.parameters(), lr=cfg.LEARNING_RATE, **cfg.OPTIM_KWARGS)
         if cfg.IS_SCHEDULER:
+            # self.scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+            #     self.optimizer, T_max=cfg.EPOCHS, eta_min=1e-6)
             self.scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(
                 self.optimizer, T_0=20, T_mult=5, eta_min=1e-6)
 
@@ -178,7 +182,6 @@ class Engine:
 
 def k_fold_cross_validate(cfg: Config):
     import pandas as pd
-    # import matplotlib.pyplot as plt
 
     def k_fold_data_split():
         data_train_dir = os.path.join(cfg.DATA_DIR, 'image')
@@ -223,12 +226,22 @@ def k_fold_cross_validate(cfg: Config):
     df = pd.DataFrame.from_dict(evaluation)
     df.index = pd.Series([f'fold-{k+1}' for k in range(cfg.K_FOLD)])
     col_mean = df.mean()
-    col_mean.index = pd.Series(['mean'])
     col_std = df.std()
-    col_std.index = pd.Series(['std'])
-    df = df.append(col_mean)
-    df = df.append(col_std)
+    df.loc['mean'] = col_mean
+    df.loc['std'] = col_std
     df.to_csv(os.path.join(cfg.RUNNING_DIR, 'evaluation.csv'))
+
+    losses = {'train': [], 'valid': []}
+    for k in range(cfg.K_FOLD):
+        loss = load_pickle(os.path.join(cfg.RUNNING_DIR, f'fold-{k + 1}', 'loss.pkl'))
+        losses['train'].append(loss['train'])
+        losses['valid'].append(loss['valid'])
+    plot_mean_std_curves(
+        losses,
+        strids={'train': 1, 'valid': cfg.VALID_INTERVAL},
+        labels={'train': 'train loss', 'valid': 'valid loss'},
+        filename=os.path.join(cfg.RUNNING_DIR, 'loss_curve.png'),
+    )
 
 
 if __name__ == '__main__':

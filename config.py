@@ -2,8 +2,7 @@ import os
 import torch
 from utils import Logger
 from utils.data import train_transforms, valid_transforms, infer_transforms
-from metric import dice_coefficient, intersection_over_union, hausdorff_distance_2d
-from losses import DiceCELoss
+import metric
 
 
 class Config:
@@ -18,13 +17,13 @@ class Config:
     DEVICE = 'cuda:0'
     DEVICE_IDS = [0, 1]
 
-    # SMP `create_model` 参数
-    SMP_ARCH = 'unet'
-    SMP_ENCODER_NAME = 'efficientnet-b7'
-    SMP_ENCODER_WEIGHTS = 'imagenet'
-    SMP_IN_CHANNELS = 3
-    SMP_CLASSES = 1
-    SMP_KWARGS = {}
+    # `create_model` 参数
+    MODEL_ARCH = 'unet++'
+    MODEL_ENCODER_NAME = 'efficientnet-b7'
+    MODEL_ENCODER_WEIGHTS = 'imagenet'
+    MODEL_IN_CHANNELS = 3
+    MODEL_CLASSES = 1
+    MODEL_KWARGS = {}
     MODEL_CHECKPOINT = None
 
     # 训练超参数
@@ -44,7 +43,8 @@ class Config:
     VALID_TRANSFORMS = valid_transforms()
 
     # 损失函数
-    LOSS_FN = DiceCELoss()
+    LOSS_FN = 'dice_ce_loss'
+    LOSS_FN_KWARGS = {}
 
     # 优化方法
     OPTIMIZER = torch.optim.Adam
@@ -53,18 +53,18 @@ class Config:
     }
 
     # 评估指标
-    THRESHOLD = 0.7
+    THRESHOLD = 0.5
     EVALUATION_METRIC = {
-        'dice': dice_coefficient,
-        'iou': intersection_over_union,
+        'dice': metric.dice_coefficient,
+        'iou': metric.intersection_over_union,
         # 'haus dist': hausdorff_distance_2d,
     }
     METRIC_KEYS = EVALUATION_METRIC.keys()
 
     # 推理
-    INFER_MODEL = os.path.join(MODEL_PATH, f'{SMP_ARCH}+{SMP_ENCODER_NAME}+best.pth')
+    INFER_MODEL = os.path.join(MODEL_PATH, f'{MODEL_ARCH}+{MODEL_ENCODER_NAME}+best.pth')
     INFERENCE_DATA_DIR = './data/test'
-    INFER_SAVE_PATH = os.path.join(RUNNING_DIR, 'infer')
+    INFER_SAVE_PATH = os.path.join(RUNNING_DIR, 'infers')
     INFER_TRANSFORMS = infer_transforms()
 
     def __init__(self):
@@ -80,23 +80,7 @@ class Config:
             os.makedirs(self.RUNNING_DIR)
 
     def __str__(self):
-        # todo: 此处可修改为输出config.py文件
         with open(__file__, 'r', encoding='utf8') as fp:
             msg = fp.read()
-        # msg = f'\nLAB {self.LAB_ID}\n' \
-        #       f'MODEL: {self.SMP_ARCH} with encoder {self.SMP_ENCODER_NAME}\n' \
-        #       f'{"USING CHECKPOINT {}".format(self.MODEL_CHECKPOINT) if self.MODEL_CHECKPOINT is not None else ""}\n' \
-        #       f'# GPU硬件环境\n' \
-        #       f'DEVICE = {self.DEVICE}\n' \
-        #       f'DEVICE_IDS = {self.DEVICE_IDS}\n' \
-        #       f'# 训练超参数\n' \
-        #       f'EPOCHS = {self.EPOCHS}\n' \
-        #       f'LEARNING_RATE = {self.LEARNING_RATE}\n' \
-        #       f'IS_SCHEDULER = {self.IS_SCHEDULER}\n' \
-        #       f'SAVE_INTERVAL = {self.SAVE_INTERVAL}\n' \
-        #       f'VALID_INTERVAL = {self.VALID_INTERVAL}\n' \
-        #       f'# 数据集参数\n' \
-        #       f'IMG_SIZE = {self.IMG_SIZE}\n' \
-        #       f'BATCH_SIZE = {self.BATCH_SIZE}\n' \
-        #       f'NUM_WORKER = {self.NUM_WORKER}\n'
+
         return '\n --- config --- \n\n' + msg

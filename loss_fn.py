@@ -1,8 +1,12 @@
 import torch
 from torch import nn
-import segmentation_models_pytorch as smp
 
-__all__ = ['DiceCELoss']
+try:
+    import segmentation_models_pytorch as m
+except ImportError:
+    import models as m
+
+__all__ = ['DiceCELoss', 'get_loss_fn']
 
 
 class DiceCELoss(nn.Module):
@@ -21,13 +25,24 @@ class DiceCELoss(nn.Module):
         super(DiceCELoss, self).__init__()
         self.lamb_dice = lamb_dice
         self.lamb_ce = lamb_ce
-        self.dice = smp.losses.DiceLoss(mode=mode)
+        self.dice = m.losses.DiceLoss(mode=mode)
         if mode == 'binary':
-            self.ce = smp.losses.SoftBCEWithLogitsLoss()
+            self.ce = m.losses.SoftBCEWithLogitsLoss()
         else:
-            self.ce = smp.losses.SoftCrossEntropyLoss()
+            self.ce = m.losses.SoftCrossEntropyLoss()
 
     def forward(self, y_pred: torch.Tensor, y_true: torch.Tensor) -> torch.Tensor:
         dice_loss = self.dice(y_pred, y_true)
         ce_loss = self.ce(y_pred, y_true)
         return self.lamb_dice * dice_loss + self.lamb_ce * ce_loss
+
+
+loss_map = {
+    'dice_ce_loss': DiceCELoss,
+    'dice_loss': m.losses.DiceLoss,
+    'mse_loss': nn.MSELoss,
+}
+
+
+def get_loss_fn(loss_fn: str = 'dice_ce_loss', **kwargs) -> nn.Module:
+    return loss_map[loss_fn](**kwargs)

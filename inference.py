@@ -5,7 +5,7 @@ import segmentation_models_pytorch as smp
 from PIL import Image
 
 from config import Config
-from utils import zip_files
+from utils import zip_dir
 from utils.data import STS2DDataset
 
 
@@ -62,9 +62,7 @@ def generate_inference(cfg: Config):
     for i, inputs in enumerate(dataset):
         infer.infer(inputs, dataset.filenames[i])
 
-    file_paths = [os.path.join(cfg.INFER_SAVE_PATH, i)
-                  for i in os.listdir(cfg.INFER_SAVE_PATH) if i[-3:] == 'png']
-    zip_files(file_paths, os.path.join(cfg.RUNNING_DIR, 'infer.zip'))
+    zip_dir(cfg.INFER_SAVE_PATH, os.path.join(cfg.RUNNING_DIR, 'infers.zip'))
 
 
 if __name__ == '__main__':

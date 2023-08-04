@@ -72,7 +72,8 @@ def hard_transforms():
     trans = [
         albu.RandomRotate90(),
         albu.ShiftScaleRotate(),
-        albu.Cutout(),
+        # albu.Cutout(),
+        albu.CoarseDropout(),
         albu.RandomBrightnessContrast(p=0.3),
         albu.HueSaturationValue(p=0.3),
         albu.GridDistortion(p=0.3),
