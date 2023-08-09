@@ -37,10 +37,39 @@ class DiceCELoss(nn.Module):
         return self.lamb_dice * dice_loss + self.lamb_ce * ce_loss
 
 
+class DiceMSELoss(nn.Module):
+    def __init__(self, mode: str = 'binary', lamb_dice: float = 1.0, lamb_mse: float = 1.0):
+        """Dice Loss and Cross Entropy Loss
+
+        Args
+            - **mode**: Loss mode 'binary', 'multiclass' or 'multilabel'
+            - **lamb_dice**: Factor of dice loss
+            - **lamb_mse**: Factor of mse loss
+
+        Shape
+            - **y_pred**: torch.Tensor of shape (N, C, H, W)
+            - **y_true**: torch.Tensor of shape (N, H, W) or (N, C, H, W)
+        """
+        super(DiceMSELoss, self).__init__()
+        self.lamb_dice = lamb_dice
+        self.lamb_mse = lamb_mse
+        self.dice = m.losses.DiceLoss(mode=mode)
+        self.mse = nn.MSELoss()
+        self.mode = mode
+
+    def forward(self, y_pred: torch.Tensor, y_true: torch.Tensor) -> torch.Tensor:
+        dice_loss = self.dice(y_pred, y_true)
+        if self.mode == 'binary':
+            y_pred = y_pred.squeeze(dim=1)
+        mse_loss = self.mse(y_pred, y_true)
+        return self.lamb_dice * dice_loss + self.lamb_mse * mse_loss
+
+
 loss_map = {
     'dice_ce_loss': DiceCELoss,
     'dice_loss': m.losses.DiceLoss,
     'mse_loss': nn.MSELoss,
+    'dice_mse_loss': DiceMSELoss,
 }
 
 

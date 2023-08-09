@@ -3,12 +3,14 @@ import torch.utils.model_zoo as model_zoo
 
 from .resnet import resnet_encoders
 from .efficientnet import efficient_net_encoders
+from .senet import senet_encoders
 
 from ._preprocessing import preprocess_input
 
 encoders = {}
 encoders.update(resnet_encoders)
 encoders.update(efficient_net_encoders)
+encoders.update(senet_encoders)
 
 
 def get_encoder(name, in_channels=3, depth=5, weights=None, output_stride=32):

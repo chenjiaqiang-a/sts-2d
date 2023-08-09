@@ -10,11 +10,10 @@ __all__ = ['STS2DDataset', 'train_transforms', 'valid_transforms', 'infer_transf
 
 
 class STS2DDataset(Dataset):
-    def __init__(self, data_dir, filenames, tag='train', transform=None):
+    def __init__(self, data_dir, filenames, transform=None):
         super(STS2DDataset, self).__init__()
         self.data_dir = data_dir
         self.filenames = filenames
-        self.tag = tag
         self.transform = transform
 
     def __getitem__(self, index):
@@ -23,11 +22,10 @@ class STS2DDataset(Dataset):
         # image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         result = {'image': image}
 
-        if self.tag == 'train':
-            mask_path = os.path.join(self.data_dir, 'mask', self.filenames[index])
-            mask = cv2.imread(mask_path, 0)
-            mask = np.where(mask > 127, 1, 0).astype(np.float32)
-            result['mask'] = mask
+        mask_path = os.path.join(self.data_dir, 'mask', self.filenames[index])
+        mask = cv2.imread(mask_path, 0)
+        mask = np.where(mask > 127, 1, 0).astype(np.float32)
+        result['mask'] = mask
 
         if self.transform is not None:
             result = self.transform(**result)
@@ -37,21 +35,10 @@ class STS2DDataset(Dataset):
     def __len__(self):
         return len(self.filenames)
 
-    def __iter__(self):
-        self._start_num = 0
-        return self
-
-    def __next__(self):
-        if self._start_num >= len(self):
-            raise StopIteration()
-        output = self[self._start_num]
-        self._start_num += 1
-        return output
-
 
 # Transforms
 def crop_transforms(image_size: int = 224):
-    ratio = random.random() + 1  # [1, 2)
+    ratio = random.random() * 3 + 1  # [1, 4)
     max_size = int(image_size * ratio)
     scaled_crop = albu.Compose([
         albu.SmallestMaxSize(max_size, p=1),
@@ -71,6 +58,7 @@ def crop_transforms(image_size: int = 224):
 def hard_transforms():
     trans = [
         albu.RandomRotate90(),
+        albu.Flip(),
         albu.ShiftScaleRotate(),
         # albu.Cutout(),
         albu.CoarseDropout(),

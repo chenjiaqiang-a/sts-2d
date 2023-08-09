@@ -48,13 +48,12 @@ class Engine:
         # 训练配置
         self.criterion = get_loss_fn(cfg.LOSS_FN, **cfg.LOSS_FN_KWARGS).to(self.device)
         self.optimizer = cfg.OPTIMIZER(self.model.parameters(), lr=cfg.LEARNING_RATE, **cfg.OPTIM_KWARGS)
-        if cfg.IS_SCHEDULER:
-            # self.scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-            #     self.optimizer, T_max=cfg.EPOCHS, eta_min=1e-6)
-            self.scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(
-                self.optimizer, T_0=20, T_mult=5, eta_min=1e-6)
+        if cfg.SCHEDULER is not None:
+            self.scheduler = cfg.SCHEDULER(self.optimizer, **cfg.SCHEDULER_KWARGS)
+        else:
+            self.scheduler = None
 
-        self.best_score = 1e10
+        self.best_score = 1e6
 
         # 评估配置
         self.threshold = cfg.THRESHOLD
@@ -86,11 +85,12 @@ class Engine:
                     self.best_score = train_result['loss']
                     self.save_model(f'{self.model_name}+best.pth')
             elif (ep + 1) % self.valid_interval == 0:
+                # todo: a better validation method
                 valid_result = self.valid_epoch(valid_dataloader)
                 losses['valid'].append(valid_result['loss'])
 
                 self.logger.info('[valid] epoch:{} loss: {:.6}'.format(
-                    ep + 1, valid_result['loss'],
+                    ep + 1, valid_result['loss']
                 ))
 
                 if valid_result['loss'] < self.best_score:
@@ -108,7 +108,7 @@ class Engine:
             masks = data['mask'].to(self.device)
 
             preds = self.model(images)
-            loss = self.criterion(preds.squeeze(dim=1), masks)
+            loss = self.criterion(preds, masks)
 
             self.optimizer.zero_grad()
             loss.backward()
@@ -121,6 +121,7 @@ class Engine:
     @torch.no_grad()
     def valid_epoch(self, dataloader):
         self.model.eval()
+        # todo: a better validation method
 
         ep_loss = []
         for data in dataloader:
@@ -128,7 +129,7 @@ class Engine:
             masks = data['mask'].to(self.device)
 
             preds = self.model(images)
-            loss = self.criterion(preds.squeeze(dim=1), masks)
+            loss = self.criterion(preds, masks)
 
             ep_loss.append(loss.cpu().numpy())
 
@@ -178,6 +179,10 @@ class Engine:
             self.logger.info(f'{key:>10}: {results[key]:.6f}')
 
         return results
+
+    # todo: a better evaluation method
+    def eval_epoch(self):
+        pass
 
 
 def k_fold_cross_validate(cfg: Config):
@@ -259,8 +264,10 @@ if __name__ == '__main__':
         config.logger.info('--- TRAIN ON FULL DATA ---')
         image_dir = os.path.join(config.DATA_DIR, 'image')
         files = [file for file in os.listdir(image_dir) if file[-3:] == 'png']
-        dataset = STS2DDataset(config.DATA_DIR, files, transform=config.TRAIN_TRANSFORMS)
-        loader = DataLoader(dataset, batch_size=config.BATCH_SIZE, shuffle=True, num_workers=config.NUM_WORKER)
+        t_dataset = STS2DDataset(config.DATA_DIR, files, transform=config.TRAIN_TRANSFORMS)
+        # v_dataset = STS2DDataset(config.DATA_DIR, files, transform=config.VALID_TRANSFORMS)
+        t_loader = DataLoader(t_dataset, batch_size=config.BATCH_SIZE, shuffle=True, num_workers=config.NUM_WORKER)
+        # v_loader = DataLoader(v_dataset, batch_size=config.BATCH_SIZE, shuffle=False, num_workers=config.NUM_WORKER)
 
         runner = Engine(config)
-        runner.train(loader)
+        runner.train(t_loader)
