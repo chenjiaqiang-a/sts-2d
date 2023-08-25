@@ -42,7 +42,7 @@ class WindowGenerator:
 
     def _next_row(self):
         self._i += self.si
-        self.j = 0
+        self._j = 0
 
     def __iter__(self):
         return self
