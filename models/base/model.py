@@ -21,13 +21,16 @@ class SegmentationModel(torch.nn.Module):
                 f"divisible by {output_stride}. Consider pad your images to shape ({new_h}, {new_w})."
             )
 
-    def forward(self, x):
+    def forward(self, x, dropout: float = None):
         """Sequentially pass `x` trough model`s encoder, decoder and heads"""
 
         self.check_input_shape(x)
 
         features = self.encoder(x)
         decoder_output = self.decoder(*features)
+
+        if self.training and dropout is not None:
+            decoder_output = torch.nn.functional.dropout2d(decoder_output, dropout)
 
         masks = self.segmentation_head(decoder_output)
 

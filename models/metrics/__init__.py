@@ -1,5 +1,6 @@
 from .functional import (
     get_stats,
+    dice_score,
     fbeta_score,
     f1_score,
     iou_score,
